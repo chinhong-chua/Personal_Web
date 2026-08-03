@@ -1,0 +1,35 @@
+#!/bin/sh
+# Pushing to master triggers the deploy workflow, which builds from the
+# PROFILE_TS_B64 secret rather than from the working tree. If profile.ts has
+# been edited since the secret was last uploaded, that deploy silently ships
+# the previous content. Sync first.
+#
+# Enable once per clone:  git config core.hooksPath .githooks
+# Bypass in a pinch:      git push --no-verify
+
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+  case "$remote_ref" in
+    refs/heads/master) ;;
+    *) continue ;;
+  esac
+
+  if [ ! -f src/data/profile.ts ]; then
+    echo "pre-push: src/data/profile.ts not present — skipping secret sync." >&2
+    exit 0
+  fi
+
+  if ! command -v gh >/dev/null 2>&1; then
+    echo "pre-push: gh not found — cannot verify PROFILE_TS_B64 is current." >&2
+    echo "          Install the GitHub CLI or push with --no-verify." >&2
+    exit 1
+  fi
+
+  if ! node scripts/sync-profile-secret.mjs; then
+    echo "pre-push: secret sync failed — the deploy would ship stale content." >&2
+    exit 1
+  fi
+
+  exit 0
+done
+
+exit 0

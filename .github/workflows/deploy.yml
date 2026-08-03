@@ -42,6 +42,28 @@ jobs:
           printf '%s' "$PROFILE_TS_B64" | base64 -d > src/data/profile.ts
           test -s src/data/profile.ts || { echo "::error::Decoded profile.ts is empty."; exit 1; }
 
+      # `npm run sync:secret` uploads the secret and publishes the same file's
+      # sha256 as a readable variable. They should always agree; disagreement
+      # means the secret was set by hand or a sync half-completed.
+      #
+      # Note this proves integrity, not freshness — CI never sees the real
+      # local file, so only the pre-push hook can catch "edited but not synced".
+      - name: Verify decoded profile.ts against published fingerprint
+        env:
+          EXPECTED: ${{ vars.PROFILE_TS_SHA256 }}
+        run: |
+          actual=$(sha256sum src/data/profile.ts | cut -d' ' -f1)
+          if [ -z "$EXPECTED" ]; then
+            echo "::warning::PROFILE_TS_SHA256 is unset — run 'npm run sync:secret' to publish it."
+            exit 0
+          fi
+          if [ "$actual" != "$EXPECTED" ]; then
+            echo "::error::Secret and fingerprint disagree. Expected $EXPECTED, decoded $actual."
+            echo "::error::Run 'npm run sync:secret' to reconcile them."
+            exit 1
+          fi
+          echo "Decoded profile.ts matches published fingerprint."
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22

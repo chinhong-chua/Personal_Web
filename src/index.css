@@ -1,0 +1,283 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --bg: #fafaf9;
+  --bg-elev: #ffffff;
+  --fg: #101014;
+  --muted: #5c5c66;
+  --line: rgb(0 0 0 / 0.1);
+  --surface: rgb(0 0 0 / 0.03);
+  --surface-hi: rgb(0 0 0 / 0.06);
+  --glow: 0.35;
+
+  --a1: #7c3aed; /* violet */
+  --a2: #ec4899; /* pink   */
+  --a3: #06b6d4; /* cyan   */
+}
+
+.dark {
+  --bg: #07070b;
+  --bg-elev: #0e0e14;
+  --fg: #f2f2f4;
+  --muted: #9b9bA6;
+  --line: rgb(255 255 255 / 0.1);
+  --surface: rgb(255 255 255 / 0.04);
+  --surface-hi: rgb(255 255 255 / 0.08);
+  --glow: 1;
+
+  --a1: #a78bfa;
+  --a2: #f472b6;
+  --a3: #22d3ee;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-elev: var(--bg-elev);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-surface: var(--surface);
+  --color-surface-hi: var(--surface-hi);
+  --color-a1: var(--a1);
+  --color-a2: var(--a2);
+  --color-a3: var(--a3);
+
+  --font-display: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@layer base {
+  * {
+    border-color: var(--line);
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'ss01';
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--a1) 45%, transparent);
+    color: var(--fg);
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: color-mix(in oklab, var(--fg) 18%, transparent);
+    border-radius: 999px;
+    border: 3px solid var(--bg);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in oklab, var(--fg) 32%, transparent);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--a3);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+}
+
+@layer components {
+  .glass {
+    background: var(--surface);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    border: 1px solid var(--line);
+  }
+
+  .gradient-text {
+    background-image: linear-gradient(100deg, var(--a1), var(--a2) 45%, var(--a3));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* Animated conic border used on feature cards */
+  .ring-conic {
+    position: relative;
+  }
+  .ring-conic::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    background: conic-gradient(
+      from var(--angle),
+      transparent 0deg,
+      var(--a1) 60deg,
+      var(--a3) 130deg,
+      transparent 200deg
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    pointer-events: none;
+  }
+  .ring-conic:hover::before {
+    opacity: 1;
+    animation: spin-angle 4s linear infinite;
+  }
+}
+
+@property --angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes spin-angle {
+  to {
+    --angle: 360deg;
+  }
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  animation: marquee 32s linear infinite;
+}
+
+.grain::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ---------- Print: the resume section becomes a clean A4 document ---------- */
+@page {
+  size: A4;
+  margin: 14mm 15mm;
+}
+
+@media print {
+  /* Force the light document palette regardless of the on-screen theme.
+     Listed alongside .dark so it wins whichever theme is active. */
+  :root,
+  .dark {
+    --bg: #fff;
+    --bg-elev: #fff;
+    --fg: #000;
+    --muted: #3f3f46;
+    --line: #d4d4d8;
+    --surface: transparent;
+    --surface-hi: transparent;
+    --glow: 0;
+    --a1: #000;
+    --a2: #52525b;
+    --a3: #52525b;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+    overflow: visible !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  /* Everything that isn't the resume stays on screen only. */
+  main > section:not(#resume) {
+    display: none !important;
+  }
+
+  /* Decorative fixed layers would otherwise paint over every page. */
+  .grain::after {
+    display: none !important;
+  }
+
+  /* Sections animate in on scroll. If the resume was never scrolled into
+     view, its reveal wrappers are still at opacity:0 — which printed a
+     blank page. Neutralise all motion state inside the document. */
+  #resume,
+  #resume * {
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+    animation: none !important;
+    transition: none !important;
+  }
+
+  #resume {
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .glass {
+    background: transparent !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .gradient-text {
+    background-image: none !important;
+    color: #000 !important;
+    -webkit-text-fill-color: #000 !important;
+  }
+
+  /* Keep a role and its bullets together; allow the list itself to flow. */
+  .print-keep {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  a {
+    text-decoration: none !important;
+    color: inherit !important;
+  }
+}

@@ -1,0 +1,24 @@
+node_modules
+dist
+dist-ssr
+*.local
+.DS_Store
+.vite
+
+# Local tool settings — machine-specific, not for the repo
+.claude/
+
+# ── Personal content ─────────────────────────────────────────
+# The real profile data. The repo ships profile.example.ts instead;
+# copy it to profile.ts to run the site. Keeping this out of git means
+# nothing personal is in history, GitHub code search, or any fork.
+src/data/profile.ts
+
+# Never commit CV documents or anything exported from them.
+*.docx
+*.pdf
+public/
+.env
+.env.*
+
+DEPLOYMENT.md

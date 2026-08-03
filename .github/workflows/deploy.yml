@@ -1,0 +1,97 @@
+name: Build and deploy to Hostinger
+
+# Hostinger's own "Deploy from GitHub" cannot be used for this project: it is a
+# plain clone into public_html with no build step, and the repo intentionally
+# ships no dist/ and no src/data/profile.ts. This workflow does the build here
+# instead and publishes only the built output over FTPS.
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+# Never let two deploys write to public_html at once.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The invariant this whole setup exists to protect.
+      - name: Guard — profile.ts must not be tracked in git
+        run: |
+          if git ls-files --error-unmatch src/data/profile.ts >/dev/null 2>&1; then
+            echo "::error::src/data/profile.ts is tracked. It must stay gitignored."
+            exit 1
+          fi
+
+      # Real content lives only in a secret, so it is never in the repo,
+      # in git history, or in GitHub code search.
+      - name: Restore profile.ts from secret
+        env:
+          PROFILE_TS_B64: ${{ secrets.PROFILE_TS_B64 }}
+        run: |
+          if [ -z "$PROFILE_TS_B64" ]; then
+            echo "::error::PROFILE_TS_B64 is not set (Settings → Secrets and variables → Actions)."
+            exit 1
+          fi
+          printf '%s' "$PROFILE_TS_B64" | base64 -d > src/data/profile.ts
+          test -s src/data/profile.ts || { echo "::error::Decoded profile.ts is empty."; exit 1; }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build
+
+      # profile.emailUser/emailDomain are joined at runtime so no address is a
+      # literal in the bundle. The contact form's placeholder is the one known
+      # exception; anything else means the split has been broken.
+      - name: Check bundle for email literals
+        run: |
+          found=$(grep -rhoE '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}' dist/ \
+            | sort -u | grep -vx 'ada@company\.com' || true)
+          if [ -n "$found" ]; then
+            echo "::error::Unexpected email literals in dist/:"
+            echo "$found"
+            exit 1
+          fi
+          echo "Only the known form placeholder present — email split is holding."
+
+      # public/ is gitignored, so static extras are written here rather than
+      # committed. Hashed asset names are safe to cache forever; index.html
+      # must not be, or visitors keep an app pointing at deleted assets.
+      - name: Write .htaccess into dist/
+        run: |
+          cat > dist/.htaccess <<'HTACCESS'
+          <IfModule mod_headers.c>
+            <FilesMatch "\.(js|css|woff2)$">
+              Header set Cache-Control "public, max-age=31536000, immutable"
+            </FilesMatch>
+            <FilesMatch "index\.html$">
+              Header set Cache-Control "no-cache"
+            </FilesMatch>
+          </IfModule>
+
+          # The deploy action leaves its sync manifest in the web root.
+          <Files ".ftp-deploy-sync-state.json">
+            Require all denied
+          </Files>
+          HTACCESS
+
+      - name: Deploy dist/ to public_html
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USER }}
+          password: ${{ secrets.FTP_PASS }}
+          protocol: ftps
+          local-dir: ./dist/
+          server-dir: /public_html/

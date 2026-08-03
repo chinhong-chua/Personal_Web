@@ -1,9 +1,17 @@
 name: Build and deploy to Hostinger
 
-# Hostinger's own "Deploy from GitHub" cannot be used for this project: it is a
-# plain clone into public_html with no build step, and the repo intentionally
-# ships no dist/ and no src/data/profile.ts. This workflow does the build here
-# instead and publishes only the built output over FTPS.
+# Hostinger's "Deploy from GitHub" is a plain clone into public_html with no
+# build step, so pointing it at master serves an index.html referencing
+# /src/main.tsx and renders nothing.
+#
+# It works fine if the branch it clones is *already built*. So this workflow
+# builds here and force-pushes the contents of dist/ to the `deploy` branch,
+# whose root is the built site. Hostinger then pulls that branch.
+#
+# Pushing files to Hostinger directly was the original design, but FTP from
+# GitHub's runners times out on the control socket — port 21 is reachable from
+# a residential IP and not from Actions, i.e. datacenter ranges are filtered.
+# Inverting the direction sidesteps that entirely and needs no credentials.
 
 on:
   push:
@@ -18,6 +26,9 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # Needed to force-push the built output to the deploy branch.
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -102,18 +113,26 @@ jobs:
             </FilesMatch>
           </IfModule>
 
-          # The deploy action leaves its sync manifest in the web root.
-          <Files ".ftp-deploy-sync-state.json">
-            Require all denied
-          </Files>
+          # Hostinger clones the deploy branch into public_html, which leaves a
+          # .git directory in the web root. Nothing secret is in it, but it
+          # should not be browsable.
+          RedirectMatch 404 /\.git
           HTACCESS
 
-      - name: Deploy dist/ to public_html
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ secrets.FTP_HOST }}
-          username: ${{ secrets.FTP_USER }}
-          password: ${{ secrets.FTP_PASS }}
-          protocol: ftps
-          local-dir: ./dist/
-          server-dir: /public_html/
+      # A fresh history each time — this branch is build output, not source, so
+      # there is nothing worth preserving and no reason to grow it forever.
+      # Force-push touches only `deploy`; master is never written to.
+      - name: Publish dist/ to the deploy branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: dist
+        run: |
+          test -f index.html || { echo "::error::dist/index.html missing — refusing to publish."; exit 1; }
+          git init -q -b deploy
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Build from ${GITHUB_SHA}"
+          git push -q --force \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" deploy
+          echo "Published $(git ls-files | wc -l) files to the deploy branch."

@@ -22,6 +22,24 @@
         document.documentElement.classList.toggle('dark', t !== 'light')
       } catch {}
     </script>
+    <!-- Google tag (gtag.js). Vite substitutes the measurement ID from the
+         VITE_GA_ID env var at build time. If it is unset the placeholder is
+         left as-is, fails the shape check below, and no tag is installed —
+         so an unconfigured build never requests a malformed gtag URL. -->
+    <script>
+      ;(function () {
+        const id = '%VITE_GA_ID%'
+        if (!/^G-[A-Z0-9]+$/.test(id)) return
+        const s = document.createElement('script')
+        s.async = true
+        s.src = 'https://www.googletagmanager.com/gtag/js?id=' + id
+        document.head.appendChild(s)
+        window.dataLayer = window.dataLayer || []
+        window.gtag = function () { dataLayer.push(arguments) }
+        gtag('js', new Date())
+        gtag('config', id)
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

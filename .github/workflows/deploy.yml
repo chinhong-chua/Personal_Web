@@ -82,7 +82,36 @@ jobs:
 
       - run: npm ci
 
+      # index.html carries %VITE_GA_ID%, which Vite substitutes at build time.
+      # A repository *variable* rather than a secret: a GA4 measurement ID is
+      # served to every visitor in the page source, so it is not confidential,
+      # and masking it would only turn a wrong value into *** in these logs.
+      - name: Configure analytics
+        env:
+          GA_ID: ${{ vars.VITE_GA_ID }}
+        run: |
+          if [ -z "$GA_ID" ]; then
+            echo "::warning::VITE_GA_ID is unset — building without analytics."
+          fi
+          echo "VITE_GA_ID=$GA_ID" > .env.production.local
+
       - run: npm run build
+
+      # The placeholder surviving the build means the variable never reached
+      # Vite, which is silent by design — the tag just never installs. Fail
+      # loudly instead, but only when a value was actually supplied.
+      - name: Check the analytics ID was substituted
+        if: vars.VITE_GA_ID != ''
+        env:
+          GA_ID: ${{ vars.VITE_GA_ID }}
+        run: |
+          if grep -q '%VITE_GA_ID%' dist/index.html; then
+            echo "::error::VITE_GA_ID was set but dist/index.html still has the placeholder."
+            exit 1
+          fi
+          grep -qF "$GA_ID" dist/index.html \
+            || { echo "::error::Measurement ID missing from dist/index.html."; exit 1; }
+          echo "Analytics ID substituted into the built output."
 
       # profile.emailUser/emailDomain are joined at runtime so no address is a
       # literal in the bundle. The contact form's placeholder is the one known
